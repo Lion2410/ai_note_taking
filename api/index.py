@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import asyncio
 from deepgram import Deepgram
 from summarize import summarize_text
+import mimetypes
 
 # Load environment variables from .env file
 load_dotenv()
@@ -48,10 +49,18 @@ def upload_file():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
+            # Detect the MIME type of the uploaded file
+            mimetype, _ = mimetypes.guess_type(filepath)
+
             with open(filepath, 'rb') as audio_file:
-                response = loop.run_until_complete(
-                    dg_client.transcription.sync_prerecorded(audio_file, {'language': 'en'})
+                audio_bytes = audio_file.read()
+
+            response = loop.run_until_complete(
+                dg_client.transcription.prerecorded(
+                    {"buffer": audio_bytes, "mimetype": mimetype or "audio/mpeg"},
+                    {"language": "en"}
                 )
+            )
 
             transcription = response['results']['channels'][0]['alternatives'][0]['transcript']
 
