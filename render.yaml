@@ -2,6 +2,6 @@ services:
   - type: web
     name: ai-note-taking-backend
     env: python
-    buildCommand: ""
+    buildCommand: pip install -r requirements.txt
     startCommand: python api/index.py
     plan: free

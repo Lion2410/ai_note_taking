@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, render_template
 import whisper
-from api.summarize import summarize_text
+from summarize import summarize_text
 import traceback  # <-- Added this import for traceback
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads')
