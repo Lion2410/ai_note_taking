@@ -1,5 +1,0 @@
-Flask
-openai-whisper
-transformers
-torch
-sumy

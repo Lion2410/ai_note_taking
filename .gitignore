@@ -37,3 +37,4 @@ Thumbs.db
 
 # Flask uploads folder
 uploads/
+nltk_data/
