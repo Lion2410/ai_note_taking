@@ -12,7 +12,7 @@ load_dotenv()
 DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY')
 
 # Instantiate Deepgram client correctly (with the updated version)
-deepgram_client = Deepgram(DEEPGRAM_API_KEY)
+dg_client = Deepgram(DEEPGRAM_API_KEY)
 
 app = Flask(__name__, template_folder='../templates')
 
@@ -24,6 +24,7 @@ def allowed_file(filename):
 def index():
     return render_template('index.html')
 
+# Update this in the `upload_file` function:
 @app.route('/upload', methods=['POST'])
 def upload_file():
     try:
@@ -40,13 +41,15 @@ def upload_file():
             os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
             file.save(filepath)
 
-            # Make the transcription request to Deepgram
+            # Initialize the Deepgram client using the correct method
+            dg_client = Deepgram(DEEPGRAM_API_KEY)
+
+            # Use the new transcription method for version 3
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
             with open(filepath, 'rb') as audio_file:
-                # Update method for transcription (version 3)
-                response = loop.run_until_complete(deepgram_client.transcription.prerecorded(audio_file, {'language': 'en'}))
+                response = loop.run_until_complete(dg_client.transcription.sync_prerecorded(audio_file, {'language': 'en'}))
 
             transcription = response['results']['channels'][0]['alternatives'][0]['transcript']
 
