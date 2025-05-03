@@ -2,6 +2,7 @@ import os
 from flask import Flask, request, render_template
 import whisper
 from api.summarize import summarize_text
+import traceback  # <-- Added this import for traceback
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads')
 ALLOWED_EXTENSIONS = {'wav', 'mp3', 'm4a'}
@@ -42,7 +43,7 @@ def upload_file():
             print(f"Transcribed: {transcribed_text}")
 
             if not transcribed_text:
-                return render_template('error.html', message="No text was transcribed from the audio file.")
+                return render_template('error.html', message="We couldn't detect any speech in your audio. Please try again with a clearer recording.")
 
             summarized_text = summarize_text(transcribed_text)
             print(f"Summary: {summarized_text}")
@@ -50,12 +51,12 @@ def upload_file():
             return render_template('result.html', transcription=transcribed_text, summary=summarized_text)
 
         else:
-            return render_template('error.html', message="Invalid file type or Whisper model not loaded.")
+            return render_template('error.html', message="Unsupported file type. Please upload a valid audio file (e.g., .mp3, .wav, .m4a).")
+
     except Exception as e:
         print("An error occurred:")
         traceback.print_exc()
-        return render_template('error.html', message=f"An error occurred: {str(e)}")
+        return render_template('error.html', message=f"An unexpected error occurred: {str(e)}. Please try again.")
 
 if __name__ == '__main__':
-    import traceback
     app.run(debug=True)
