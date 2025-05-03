@@ -1,7 +1,5 @@
 Flask
-openai-whisper
-torch
-transformers
+deepgram-sdk
 sumy
 nltk
-pydub
+python-dotenv

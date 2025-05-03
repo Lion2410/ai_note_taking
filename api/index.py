@@ -1,72 +1,71 @@
 import os
+from dotenv import load_dotenv
+import asyncio
 from flask import Flask, request, render_template
-import whisper
-from summarize import summarize_text
-import traceback  # <-- Added this import for traceback
+from deepgram import Deepgram
+from summarize import summarize_text  # Your sumy-based summarizer
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads')
-ALLOWED_EXTENSIONS = {'wav', 'mp3', 'm4a'}
+load_dotenv()  # This loads the .env file
+DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
 
+# Flask config
 app = Flask(__name__, template_folder='../templates')
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-model = whisper.load_model("base.en")
+# Deepgram setup
+DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
+if not DEEPGRAM_API_KEY:
+    raise ValueError("DEEPGRAM_API_KEY environment variable not set.")
+dg_client = Deepgram(DEEPGRAM_API_KEY)
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
+# Route for home page
 @app.route('/')
 def index():
     return render_template('index.html')
 
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-
+# Route for file upload and processing
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    print("Upload started")
     try:
         if 'audio_file' not in request.files:
-            return render_template('error.html', message="No file part found. Please upload a valid audio file.")
+            return render_template('error.html', message="No file part found.")
 
         file = request.files['audio_file']
         if file.filename == '':
-            return render_template('error.html', message="No file selected. Please choose an audio file to upload.")
+            return render_template('error.html', message="No file selected.")
 
-        # Check if the file size is within the allowed limit
-        file.seek(0, os.SEEK_END)  # Move to the end of the file
-        file_size = file.tell()  # Get file size
-        file.seek(0)  # Reset the pointer to the beginning of the file
+        filename = file.filename
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
 
-        if file_size > MAX_FILE_SIZE:
-            return render_template('error.html', message="File is too large. Please upload a smaller audio file (max 10MB).")
+        # Transcription using Deepgram
+        async def transcribe():
+            with open(filepath, 'rb') as audio:
+                source = {
+                    'buffer': audio,
+                    'mimetype': file.content_type
+                }
+                response = await dg_client.transcription.prerecorded(
+                    source,
+                    {'punctuate': True, 'language': 'en-US'}
+                )
+                return response['results']['channels'][0]['alternatives'][0]['transcript']
 
-        if file and allowed_file(file.filename) and model:
-            filename = file.filename
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            file.save(filepath)
+        transcribed_text = asyncio.run(transcribe()).strip()
+        os.remove(filepath)  # Clean up
 
-            print("Starting transcription...")
-            result = model.transcribe(filepath)
-            print("Finished transcription")
-            transcribed_text = result.get('text', '').strip()
-            print(f"Transcribed: {transcribed_text}")
+        if not transcribed_text:
+            return render_template('error.html', message="No speech detected in the audio.")
 
-            if not transcribed_text:
-                return render_template('error.html', message="We couldn't detect any speech in your audio. Please try again with a clearer recording.")
+        summarized_text = summarize_text(transcribed_text)
 
-            summarized_text = summarize_text(transcribed_text)
-            print(f"Summary: {summarized_text}")
-
-            return render_template('result.html', transcription=transcribed_text, summary=summarized_text)
-
-        else:
-            return render_template('error.html', message="Unsupported file type. Please upload a valid audio file (e.g., .mp3, .wav, .m4a).")
+        return render_template('result.html', transcription=transcribed_text, summary=summarized_text)
 
     except Exception as e:
-        print("An error occurred:")
-        traceback.print_exc()
-        return render_template('error.html', message=f"An unexpected error occurred: {str(e)}. Please try again.")
+        return render_template('error.html', message=f"An error occurred: {str(e)}")
 
+# Run app
 if __name__ == '__main__':
     app.run(debug=True)
