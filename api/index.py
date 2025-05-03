@@ -3,7 +3,7 @@ from flask import Flask, request, render_template
 from dotenv import load_dotenv  # Import to load environment variables from .env file
 from deepgram import Deepgram
 import asyncio  # Import for handling asynchronous tasks
-from api.summarize import summarize_text
+from summarize import summarize_text
 
 # Load environment variables from .env file
 load_dotenv()
