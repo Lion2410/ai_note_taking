@@ -1,71 +1,68 @@
 import os
-from dotenv import load_dotenv
-import asyncio
 from flask import Flask, request, render_template
+from dotenv import load_dotenv  # Import to load environment variables from .env file
 from deepgram import Deepgram
-from summarize import summarize_text  # Your sumy-based summarizer
+import asyncio  # Import for handling asynchronous tasks
+from api.summarize import summarize_text
 
-load_dotenv()  # This loads the .env file
-DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
+# Load environment variables from .env file
+load_dotenv()
 
-# Flask config
+# Your API key, set from environment variables
+DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY')
+
 app = Flask(__name__, template_folder='../templates')
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads')
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Deepgram setup
-DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
-if not DEEPGRAM_API_KEY:
-    raise ValueError("DEEPGRAM_API_KEY environment variable not set.")
-dg_client = Deepgram(DEEPGRAM_API_KEY)
+# Instantiate Deepgram with the new version 3 approach
+deepgram_client = Deepgram(DEEPGRAM_API_KEY)
 
-# Route for home page
+def allowed_file(filename):
+    ALLOWED_EXTENSIONS = {'wav', 'mp3', 'm4a'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# Route for file upload and processing
 @app.route('/upload', methods=['POST'])
 def upload_file():
     try:
         if 'audio_file' not in request.files:
-            return render_template('error.html', message="No file part found.")
+            return render_template('error.html', message="No file part found. Please upload a valid audio file.")
 
         file = request.files['audio_file']
         if file.filename == '':
-            return render_template('error.html', message="No file selected.")
+            return render_template('error.html', message="No file selected. Please choose an audio file to upload.")
 
-        filename = file.filename
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+        if file and allowed_file(file.filename):
+            filename = file.filename
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            file.save(filepath)
 
-        # Transcription using Deepgram
-        async def transcribe():
-            with open(filepath, 'rb') as audio:
-                source = {
-                    'buffer': audio,
-                    'mimetype': file.content_type
-                }
-                response = await dg_client.transcription.prerecorded(
-                    source,
-                    {'punctuate': True, 'language': 'en-US'}
-                )
-                return response['results']['channels'][0]['alternatives'][0]['transcript']
+            # Make the transcription request to Deepgram
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
 
-        transcribed_text = asyncio.run(transcribe()).strip()
-        os.remove(filepath)  # Clean up
+            with open(filepath, 'rb') as audio_file:
+                response = loop.run_until_complete(deepgram_client.transcription.sync_prerecorded(audio_file, {'language': 'en'}))
 
-        if not transcribed_text:
-            return render_template('error.html', message="No speech detected in the audio.")
+            transcription = response['results']['channels'][0]['alternatives'][0]['transcript']
 
-        summarized_text = summarize_text(transcribed_text)
+            # Handle transcription failure
+            if not transcription:
+                return render_template('error.html', message="We couldn't detect any speech in your audio. Please try again with a clearer recording.")
 
-        return render_template('result.html', transcription=transcribed_text, summary=summarized_text)
+            # Summarize the transcription
+            summarized_text = summarize_text(transcription)
+
+            return render_template('result.html', transcription=transcription, summary=summarized_text)
+
+        else:
+            return render_template('error.html', message="Unsupported file type. Please upload a valid audio file (e.g., .mp3, .wav, .m4a).")
 
     except Exception as e:
         return render_template('error.html', message=f"An error occurred: {str(e)}")
 
-# Run app
 if __name__ == '__main__':
     app.run(debug=True)
