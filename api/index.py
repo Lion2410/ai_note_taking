@@ -19,6 +19,8 @@ def allowed_file(filename):
 def index():
     return render_template('index.html')
 
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     print("Upload started")
@@ -29,6 +31,14 @@ def upload_file():
         file = request.files['audio_file']
         if file.filename == '':
             return render_template('error.html', message="No file selected. Please choose an audio file to upload.")
+
+        # Check if the file size is within the allowed limit
+        file.seek(0, os.SEEK_END)  # Move to the end of the file
+        file_size = file.tell()  # Get file size
+        file.seek(0)  # Reset the pointer to the beginning of the file
+
+        if file_size > MAX_FILE_SIZE:
+            return render_template('error.html', message="File is too large. Please upload a smaller audio file (max 10MB).")
 
         if file and allowed_file(file.filename) and model:
             filename = file.filename
