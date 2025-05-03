@@ -37,6 +37,3 @@ Thumbs.db
 
 # Flask uploads folder
 uploads/
-
-# Any other files you want to ignore
-*.env
