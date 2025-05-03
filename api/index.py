@@ -1,8 +1,8 @@
 import os
 from flask import Flask, request, render_template
 from dotenv import load_dotenv  # Import to load environment variables from .env file
-from deepgram import Deepgram
 import asyncio  # Import for handling asynchronous tasks
+from deepgram import Deepgram
 from summarize import summarize_text
 
 # Load environment variables from .env file
@@ -10,12 +10,12 @@ load_dotenv()
 
 # Your API key, set from environment variables
 DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY')
-deepgram_client = Deepgram(DEEPGRAM_API_KEY)  # Only instantiate once
 
-# Flask app setup
+# Instantiate Deepgram client correctly (with the updated version)
+deepgram_client = Deepgram(DEEPGRAM_API_KEY)
+
 app = Flask(__name__, template_folder='../templates')
 
-# Define allowed file extensions for upload
 def allowed_file(filename):
     ALLOWED_EXTENSIONS = {'wav', 'mp3', 'm4a'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -41,8 +41,12 @@ def upload_file():
             file.save(filepath)
 
             # Make the transcription request to Deepgram
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
             with open(filepath, 'rb') as audio_file:
-                response = deepgram_client.transcription.sync_prerecorded(audio_file, {'language': 'en'})
+                # Update method for transcription (version 3)
+                response = loop.run_until_complete(deepgram_client.transcription.prerecorded(audio_file, {'language': 'en'}))
 
             transcription = response['results']['channels'][0]['alternatives'][0]['transcript']
 
@@ -59,7 +63,6 @@ def upload_file():
             return render_template('error.html', message="Unsupported file type. Please upload a valid audio file (e.g., .mp3, .wav, .m4a).")
 
     except Exception as e:
-        print(f"Error: {e}")
         return render_template('error.html', message=f"An error occurred: {str(e)}")
 
 if __name__ == '__main__':
