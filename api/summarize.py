@@ -1,18 +1,20 @@
 import os
 import nltk
 
-# Get the path to nltk_data from the environment variable, defaulting to the local directory
-nltk_data_dir = os.getenv('NLTK_DATA', os.path.join(os.getcwd(), 'nltk_data'))
+# Get the path to nltk_data from the environment variable, defaulting to the project directory
+nltk_data_dir = os.getenv('NLTK_DATA', os.path.join(os.path.dirname(__file__), '..', 'nltk_data'))
 
 # Add this directory to NLTK's search path
 nltk.data.path.append(nltk_data_dir)
 
-# Download 'punkt' if it's not already available
+# Ensure 'punkt' is downloaded
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
+    print(f"Downloading 'punkt' to {nltk_data_dir}...")
+    os.makedirs(nltk_data_dir, exist_ok=True)
     nltk.download('punkt', download_dir=nltk_data_dir)
-
+    print(f"'punkt' downloaded to {nltk_data_dir}")
 
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer

@@ -1,5 +1,5 @@
-Flask
-deepgram-sdk==2.12.0
-sumy
-nltk
-python-dotenv
+Flask>=2.0.0
+python-dotenv>=1.0.0
+deepgram-sdk==4.1.0
+sumy>=0.11.0
+nltk>=3.8.1
